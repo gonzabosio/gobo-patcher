@@ -29,10 +29,7 @@ func TestDoPatch(t *testing.T) {
 	t.Run("unmarshal parse fail", func(t *testing.T) {
 		dbRec := `"name":"John", "last_name":"Doe", "age":32}`
 		newData := `{"name":"John","age": 36}`
-		diff, err := DoPatch([]byte(dbRec), []byte(newData))
-		if err != nil {
-			t.Log(err)
-		}
+		diff, _ := DoPatch([]byte(dbRec), []byte(newData))
 		assert.NotEqual(t, float64(36), diff["age"])
 	})
 	t.Run("key conflicts", func(t *testing.T) {
@@ -42,5 +39,24 @@ func TestDoPatch(t *testing.T) {
 		assert.Equal(t, map[string]interface{}(nil), diff)
 		assert.Equal(t, err, fmt.Errorf("failed maps iteration: %w", ErrKeyConflict))
 	})
-	t.Run("detect differences in complex json", func(t *testing.T) {})
+	t.Run("detect differences in complex json", func(t *testing.T) {
+		dbRec := `{"name":"John", "last_name":"Doe", "meta":{"country":"Argentina", "age":45}}`
+		newData := `{"name":"Jane", "meta":{"country":"Argentina", "age":40}}`
+		diff, err := DoPatch([]byte(dbRec), []byte(newData))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Log(diff)
+		assert.Equal(t, "Jane", diff["name"])
+		assert.Equal(t, float64(40), diff["age"])
+	})
+	t.Run("detect differences in array", func(t *testing.T) {
+		dbRec := `{"name":"John", "last_name":"Doe", "countries":["Argentina", "Brasil", "Canada"]}`
+		newData := `{"name":"Jane", "countries":["Argentina", "Brasil", "United States"]}`
+		diff, err := DoPatch([]byte(dbRec), []byte(newData))
+		if err != nil {
+			t.Fatalf("Error iterating on json with array: %v", err)
+		}
+		t.Log(diff)
+	})
 }
