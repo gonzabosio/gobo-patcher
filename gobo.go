@@ -12,7 +12,18 @@ var (
 	ErrKeyConflict = errors.New("keys with equal values have different names")
 )
 
-func DoPatch(original, new []byte) (diff map[string]interface{}, err error) {
+// DoPatch will handle the update of the given structures.
+// It checks values between database record and new request.
+//
+// Pass the database content as original and the request body for the update as new. Ensure given data will be a json in bytes array format
+//
+// To configure analysis of slices add UseReplaceSlice or UseAddNewSlice function as DoPatch argument
+func DoPatch(original, new []byte, optFuncs ...Option) (diff map[string]interface{}, err error) {
+	opts := Options{}
+	for _, optFunc := range optFuncs {
+		optFunc(&opts)
+	}
+
 	var originalMap map[string]interface{}
 	err = json.Unmarshal(original, &originalMap)
 	if err != nil {
@@ -23,14 +34,15 @@ func DoPatch(original, new []byte) (diff map[string]interface{}, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("new json-encoded parse failed: %w", err)
 	}
-	diff, err = iterateMaps(originalMap, newMap)
+
+	diff, err = iterateMaps(originalMap, newMap, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed maps iteration: %w", err)
 	}
 	return diff, nil
 }
 
-func iterateMaps(original, new map[string]interface{}) (map[string]interface{}, error) {
+func iterateMaps(original, new map[string]interface{}, opts Options) (map[string]interface{}, error) {
 	diff := make(map[string]interface{})
 	for k, v := range new {
 		for k2, v2 := range original {
@@ -63,13 +75,36 @@ func iterateMaps(original, new map[string]interface{}) (map[string]interface{}, 
 					}
 				}
 			} else if _, ok := v2.([]interface{}); ok {
+				// slices
 				new := reflect.ValueOf(v)
 				orig := reflect.ValueOf(v2)
-				fmt.Println(new)
-				fmt.Println(orig)
+				var newSli []interface{}
+				var origSli []interface{}
+				for i := range new.Len() {
+					if new.Kind() == reflect.ValueOf(v).Kind() {
+						newSli = append(newSli, new.Index(i).Interface())
+					} else {
+						newSli = append(newSli, new.Index(i))
+					}
+				}
+				for i := range orig.Len() {
+					if orig.Kind() == reflect.ValueOf(v2).Kind() {
+						origSli = append(origSli, orig.Index(i).Interface())
+					} else {
+						origSli = append(origSli, orig.Index(i))
+					}
+				}
+				if areEqual := equalSlices(newSli, origSli); !areEqual {
+					if opts.AddNewSlice {
+						diff[k] = appendNewSlice(origSli, newSli)
+					} else if opts.ReplaceSlice {
+						diff[k] = newSli
+					} else {
+						diff[k] = appendNewSliceDiffs(origSli, newSli)
+					}
+				}
 			} else if k == k2 && v != "" && v != v2 {
 				diff[k] = v
-				break
 			}
 		}
 	}

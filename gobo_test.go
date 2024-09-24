@@ -50,13 +50,40 @@ func TestDoPatch(t *testing.T) {
 		assert.Equal(t, "Jane", diff["name"])
 		assert.Equal(t, float64(40), diff["age"])
 	})
-	t.Run("detect differences in array", func(t *testing.T) {
+	t.Run("detect differences in slice", func(t *testing.T) {
 		dbRec := `{"name":"John", "last_name":"Doe", "countries":["Argentina", "Brasil", "Canada"]}`
 		newData := `{"name":"Jane", "countries":["Argentina", "Brasil", "United States"]}`
 		diff, err := DoPatch([]byte(dbRec), []byte(newData))
 		if err != nil {
-			t.Fatalf("Error iterating on json with array: %v", err)
+			t.Fatalf("Error iterating on json with slice: %v", err)
 		}
-		t.Log(diff)
+		t.Log("Differences ", diff)
+	})
+	t.Run("using 'appendNewSlice' option", func(t *testing.T) {
+		dbRec := `{"name":"John", "last_name":"Doe", "countries":["Argentina", "Brasil", "Canada"]}`
+		newData := `{"name":"Jane", "countries":["Argentina", "Brasil"]}`
+		diff, err := DoPatch([]byte(dbRec), []byte(newData), UseAddNewSlice())
+		if err != nil {
+			t.Fatalf("Error iterating on json with slice: %v", err)
+		}
+		t.Log("Differences ", diff)
+	})
+	t.Run("using 'appendNewSliceDiffs' option", func(t *testing.T) {
+		dbRec := `{"name":"John", "last_name":"Doe", "countries":["Argentina", "Brasil", "Canada"]}`
+		newData := `{"name":"Jane", "countries":["Argentina", "Brasil"]}`
+		diff, err := DoPatch([]byte(dbRec), []byte(newData), UseReplaceSlice())
+		if err != nil {
+			t.Fatalf("Error iterating on json with slice: %v", err)
+		}
+		t.Log("Differences ", diff)
+	})
+	t.Run("using default option", func(t *testing.T) {
+		dbRec := `{"name":"John", "last_name":"Doe", "countries":["Argentina", "Brasil", "Canada"]}`
+		newData := `{"name":"Jane", "countries":["Argentina", "Brasil", "United States"]}`
+		diff, err := DoPatch([]byte(dbRec), []byte(newData))
+		if err != nil {
+			t.Fatalf("Error iterating on json with slice: %v", err)
+		}
+		t.Log("Differences ", diff)
 	})
 }
