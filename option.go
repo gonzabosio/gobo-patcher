@@ -8,7 +8,7 @@ type Options struct {
 type Option func(*Options)
 
 // If ReplaceSlice is true, it will replace the original slice with the new one.
-// If it's false, it will conserve the differences of the new slice and the original one (default).
+// If it's false (default), it will conserve the differences of the new slice and the original data.
 func UseReplaceSlice() Option {
 	return func(opts *Options) {
 		opts.ReplaceSlice = true

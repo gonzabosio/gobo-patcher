@@ -176,3 +176,17 @@ func TestDoPatchExtended(t *testing.T) {
 		assert.Equal(t, expected, diff)
 	})
 }
+
+func TestDoPatchWithQuery(t *testing.T) {
+	t.Run("simple data", func(t *testing.T) {
+		db := `{"name": "Gonzalo", "age": 19}`
+		new := `{"name": "Gonza", "age": 20}`
+		query, err := DoPatchWithQuery([]byte(db), []byte(new), "user", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Log(query)
+		expected := `UPDATE "user" SET ("age"=20, "name"='Gonza') WHERE id=1`
+		assert.Equal(t, expected, query)
+	})
+}

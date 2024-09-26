@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
+	"strings"
 )
 
 var (
@@ -17,7 +17,8 @@ var (
 //
 // Pass the database content as original and the request body for the update as new. Ensure given data will be a json in bytes array format
 //
-// To configure analysis of slices add UseReplaceSlice or UseAddNewSlice function as DoPatch argument
+// To configure analysis of slices add UseReplaceSlice or UseAddNewSlice function as 'optFuncs' argument.
+// If nothing is added, it will conserve original data and add the differences with the new one when slices appears.
 func DoPatch(original, new []byte, optFuncs ...Option) (diff map[string]interface{}, err error) {
 	opts := Options{}
 	for _, optFunc := range optFuncs {
@@ -42,83 +43,25 @@ func DoPatch(original, new []byte, optFuncs ...Option) (diff map[string]interfac
 	return diff, nil
 }
 
-func iterateMaps(original, new map[string]interface{}, opts Options) (map[string]interface{}, error) {
-	diff := make(map[string]interface{})
-	for k, v := range new {
-		// fmt.Println("Type", reflect.TypeOf(v))
-		// fmt.Println(k, v)
-		for k2, v2 := range original {
-			if k != k2 && v == v2 {
-				return nil, ErrKeyConflict
-			} else if k == k2 {
-				// fmt.Println(k2, v2)
-				switch reflect.TypeOf(v).Kind() {
-				case reflect.Float64:
-					diff[k] = v
-				case reflect.Slice:
-					{
-						new := reflect.ValueOf(v)
-						orig := reflect.ValueOf(v2)
-						var newSli []interface{}
-						var origSli []interface{}
-						for i := range new.Len() {
-							if new.Kind() == reflect.ValueOf(v).Kind() {
-								newSli = append(newSli, new.Index(i).Interface())
-							} else {
-								newSli = append(newSli, new.Index(i))
-							}
-						}
-						for i := range orig.Len() {
-							if orig.Kind() == reflect.ValueOf(v2).Kind() {
-								origSli = append(origSli, orig.Index(i).Interface())
-							} else {
-								origSli = append(origSli, orig.Index(i))
-							}
-						}
-						if orig, new, areEqual := equalSlices(origSli, newSli); !areEqual {
-							if orig != nil {
-								diffOfMap, err := iterateMaps(orig, new, opts)
-								if err != nil {
-									fmt.Println(err)
-								}
-								diff[k] = diffOfMap
-							} else if opts.AddNewSlice {
-								diff[k] = appendNewSlice(origSli, newSli)
-							} else if opts.ReplaceSlice {
-								diff[k] = newSli
-							} else {
-								diff[k] = appendNewSliceDiffs(origSli, newSli)
-							}
-							break
-						}
-					}
-				default:
-					if _, ok := v2.(map[string]interface{}); ok {
-						// nested json
-						originalMap, newMap := convertToMap(v2, v)
-						for k, v := range newMap {
-							for k2, v2 := range originalMap {
-								if k == k2 {
-									if _, ok := v.([]interface{}); ok {
-										diff = handleSlice(v, v2, diff, k, opts)
-										break
-									} else if v != v2 {
-										diff[k] = v
-									}
-								}
-							}
-						}
-						break
-					} else if v != "" && v != v2 {
-						diff[k] = v
-						break
-					}
-				}
-			}
+// DoPatchWithQuery will make the same tasks as DoPatch but instead of return the differences, it will return a PostgreSQL query with only the necessary changes.
+//
+// The parameter 'rel' works as the relationship of given json with database. Keys as table attributes and the values as the association with json keys.
+// It isn't necessary to specify if there are no differences between database and json fields. In that case set 'rel' as nil.
+// For example: map[string]string{} {"lastName"(database): "last_name"(json)}
+func DoPatchWithQuery(original, new []byte, table string, rel map[string]string) (query string, err error) {
+	diff, err := DoPatch(original, new)
+	if err != nil {
+		return "", err
+	}
+	var sets []string
+	for k, v := range diff {
+		if _, ok := v.(string); ok {
+			sets = append(sets, fmt.Sprintf(`"%s"='%s'`, k, v))
+		} else {
+			sets = append(sets, fmt.Sprintf(`"%s"=%v`, k, v))
 		}
 	}
-	if len(diff) == 0 {
-		return nil, ErrNoDiff
-	}
-	return diff, nil
+	set := strings.Join(sets, ", ")
+	query = fmt.Sprintf(`UPDATE "%s" SET (%s) WHERE id=%v`, table, set, 1)
+	return query, nil
 }
