@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 )
 
 var (
@@ -12,13 +13,13 @@ var (
 	ErrNoCondition = errors.New("method did not receive query conditions")
 )
 
-// DoPatch will handle the update of the given structures.
+// DoPatch will handle the differences of the given structures.
 // It checks values between database record and new request.
 //
-// Pass the database content as original and the request body for the update as new. Ensure given data will be a json in bytes array format
+// Pass the database content as original and the request body as the new one. Ensure given data will be a json in bytes array format
 //
 // To configure analysis of slices add UseReplaceSlice or UseAddNewSlice function as 'optFuncs' argument.
-// If nothing is added, it will conserve original data and add the differences with the new one when slices appears.
+// If nothing is added, it will conserve original slice and add the differences of the new one.
 func DoPatch(original, new []byte, optFuncs ...Option) (diff map[string]interface{}, err error) {
 	opts := Options{}
 	for _, optFunc := range optFuncs {
@@ -43,7 +44,7 @@ func DoPatch(original, new []byte, optFuncs ...Option) (diff map[string]interfac
 	return diff, nil
 }
 
-// DoPatchWithQuery will make the same tasks as DoPatch but instead of return the differences, it will return a PostgreSQL query with only the necessary changes to be made.
+// DoPatchWithQuery will do the same tasks as DoPatch but instead of return the differences, it will return a PostgreSQL query with only the necessary changes to be made.
 //
 // The 'condition' parameter can be completed as you want. It's added after the SET part.
 // If the argument is "id", "Id" or "ID", method will consider this attribute as condition to the update. If string is empty, ErrNoCondition will be triggered.
@@ -59,16 +60,21 @@ func DoPatchWithQuery(original, new []byte, table, condition string, rel map[str
 		if err != nil {
 			return "", err
 		}
-		set := buildSetClause(diff)
-		query = fmt.Sprintf(`UPDATE "%s" SET (%s) WHERE "%s"=%v`, table, set, condition, idVal)
+		switch reflect.TypeOf(idVal).Kind() {
+		case reflect.String:
+			set := buildSetClause(diff, rel)
+			query = fmt.Sprintf(`UPDATE "%s" SET (%s) WHERE "%s"='%s'`, table, set, condition, idVal.(string))
+		case reflect.Float64:
+			set := buildSetClause(diff, rel)
+			query = fmt.Sprintf(`UPDATE "%s" SET (%s) WHERE "%s"=%v`, table, set, condition, idVal)
+		}
 	default:
 		diff, _, err := findDiffsForQuery(original, new, condition)
 		if err != nil {
 			return "", err
 		}
-		set := buildSetClause(diff)
+		set := buildSetClause(diff, rel)
 		query = fmt.Sprintf(`UPDATE "%s" SET (%s) %v`, table, set, condition)
 	}
-	// todo: compare rel keys and values and replace interface(id field) type with int or string
 	return query, nil
 }

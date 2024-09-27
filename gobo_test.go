@@ -179,7 +179,7 @@ func TestDoPatchExtended(t *testing.T) {
 
 func TestDoPatchWithQuery(t *testing.T) {
 	t.Run("full condition argument", func(t *testing.T) {
-		db := `{"name": "Gonzalo", "age": 19}`
+		db := `{"name": "Gonzalo", "age": 19, "phoneNumber": "1 1234 5678"}`
 		new := `{"name": "Gonza", "age": 20}`
 		condition := `WHERE phoneNumber = '1 1234 5678'`
 		query, err := DoPatchWithQuery([]byte(db), []byte(new), "user", condition, nil)
@@ -190,7 +190,7 @@ func TestDoPatchWithQuery(t *testing.T) {
 		expected := fmt.Sprintf(`UPDATE "user" SET ("name"='Gonza', "age"=20) %v`, condition)
 		assert.Equal(t, expected, query)
 	})
-	t.Run("where id", func(t *testing.T) {
+	t.Run("where id(number)", func(t *testing.T) {
 		db := `{"id":1234, "name": "Gonzalo", "age": 19}`
 		new := `{"name": "Gonza", "age": 20}`
 		query, err := DoPatchWithQuery([]byte(db), []byte(new), "user", "id", nil)
@@ -201,6 +201,17 @@ func TestDoPatchWithQuery(t *testing.T) {
 		expected := `UPDATE "user" SET ("name"='Gonza', "age"=20) WHERE "id"=1234`
 		assert.Equal(t, expected, query)
 	})
+	t.Run("where id(string)", func(t *testing.T) {
+		db := `{"id":"1234", "name": "Gonzalo", "age": 19}`
+		new := `{"name": "Gonza", "age": 20}`
+		query, err := DoPatchWithQuery([]byte(db), []byte(new), "user", "id", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Log(query)
+		expected := `UPDATE "user" SET ("name"='Gonza', "age"=20) WHERE "id"='1234'`
+		assert.Equal(t, expected, query)
+	})
 	t.Run("error no condition", func(t *testing.T) {
 		db := `{"id":1234, "name": "Gonzalo", "age": 19}`
 		new := `{"name": "Gonza", "age": 20}`
@@ -208,5 +219,20 @@ func TestDoPatchWithQuery(t *testing.T) {
 		expected := `UPDATE "user" SET ("name"='Gonza', "age"=20) WHERE "id"=1234`
 		assert.NotEqual(t, expected, query)
 		assert.Equal(t, fmt.Errorf("method did not receive query conditions"), err)
+	})
+	t.Run("apply attributes relationship", func(t *testing.T) {
+		db := `{"id":"1234", "name": "Gonzalo", "age": 19, "country": "Argentina"}`
+		new := `{"name": "Gonza", "age": 20, "country": "Greenland"}`
+		rel := map[string]string{
+			"name": "Name",
+			"age":  "Age",
+		}
+		query, err := DoPatchWithQuery([]byte(db), []byte(new), "user", "id", rel)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Log(query)
+		expected := `UPDATE "user" SET ("Name"='Gonza', "Age"=20, "country"='Greenland') WHERE "id"='1234'`
+		assert.Equal(t, expected, query)
 	})
 }

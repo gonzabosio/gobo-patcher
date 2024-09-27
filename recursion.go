@@ -9,17 +9,14 @@ import (
 )
 
 // Detect all kind of changes such as slices and nested json.
-// The goal is for it to be general purpose differences detector while simpleMapIterator is used to build sql queries with a flat structure.
+// The goal is for it to be general purpose differences detector while simpleMapIterator is used to build sql queries from a flat structure.
 func iterateMaps(original, new map[string]interface{}, opts Options) (map[string]interface{}, error) {
 	diff := make(map[string]interface{})
 	for k, v := range new {
-		// fmt.Println("Type", reflect.TypeOf(v))
-		// fmt.Println(k, v)
 		for k2, v2 := range original {
 			if k != k2 && v == v2 {
 				return nil, ErrKeyConflict
 			} else if k == k2 {
-				// fmt.Println(k2, v2)
 				switch reflect.TypeOf(v).Kind() {
 				case reflect.Float64:
 					diff[k] = v
@@ -229,15 +226,34 @@ func findDiffsForQuery(original, new []byte, idKey string) (diff map[string]inte
 	return diff, idVal, nil
 }
 
-func buildSetClause(diff map[string]interface{}) (set string) {
+func buildSetClause(diff map[string]interface{}, rel map[string]string) (set string) {
 	var sets []string
-	for k, v := range diff {
-		if _, ok := v.(string); ok {
-			sets = append(sets, fmt.Sprintf(`"%s"='%s'`, k, v))
-		} else {
-			sets = append(sets, fmt.Sprintf(`"%s"=%v`, k, v))
+	if rel != nil {
+		for k, v := range diff {
+			if attr, found := rel[k]; found {
+				if _, ok := v.(string); ok {
+					sets = append(sets, fmt.Sprintf(`"%s"='%s'`, attr, v))
+				} else {
+					sets = append(sets, fmt.Sprintf(`"%s"=%v`, attr, v))
+				}
+			} else {
+				if _, ok := v.(string); ok {
+					sets = append(sets, fmt.Sprintf(`"%s"='%s'`, k, v))
+				} else {
+					sets = append(sets, fmt.Sprintf(`"%s"=%v`, k, v))
+				}
+			}
 		}
+		set = strings.Join(sets, ", ")
+	} else {
+		for k, v := range diff {
+			if _, ok := v.(string); ok {
+				sets = append(sets, fmt.Sprintf(`"%s"='%s'`, k, v))
+			} else {
+				sets = append(sets, fmt.Sprintf(`"%s"=%v`, k, v))
+			}
+		}
+		set = strings.Join(sets, ", ")
 	}
-	set = strings.Join(sets, ", ")
 	return set
 }
