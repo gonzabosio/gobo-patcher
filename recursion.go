@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"strings"
 )
 
+// Detect all kind of changes such as slices and nested json.
+// The goal is for it to be general purpose differences detector while simpleMapIterator is used to build sql queries with a flat structure.
 func iterateMaps(original, new map[string]interface{}, opts Options) (map[string]interface{}, error) {
 	diff := make(map[string]interface{})
 	for k, v := range new {
@@ -75,6 +78,32 @@ func iterateMaps(original, new map[string]interface{}, opts Options) (map[string
 						}
 						break
 					} else if v != "" && v != v2 {
+						diff[k] = v
+						break
+					}
+				}
+			}
+		}
+	}
+	if len(diff) == 0 {
+		return nil, ErrNoDiff
+	}
+	return diff, nil
+}
+
+// Detect changes in flat json structures such as strings and numbers. Used in DoPatchWithQuery method to create the queries.
+func simpleMapIterator(original, new map[string]interface{}) (map[string]interface{}, error) {
+	diff := make(map[string]interface{})
+	for k, v := range new {
+		for k2, v2 := range original {
+			if k != k2 && v == v2 {
+				return nil, ErrKeyConflict
+			} else if k == k2 {
+				switch reflect.TypeOf(v).Kind() {
+				case reflect.Float64:
+					diff[k] = v
+				case reflect.String:
+					if v != "" && v != v2 {
 						diff[k] = v
 						break
 					}
@@ -179,4 +208,36 @@ func handleSlice(v, v2 interface{}, diff map[string]interface{}, key string, opt
 		diff[key] = appendNewSliceDiffs(origSli, newSli)
 	}
 	return diff
+}
+
+func findDiffsForQuery(original, new []byte, idKey string) (diff map[string]interface{}, idVal interface{}, err error) {
+	var originalMap map[string]interface{}
+	err = json.Unmarshal(original, &originalMap)
+	if err != nil {
+		return nil, idVal, fmt.Errorf("original json-encoded parse failed: %w", err)
+	}
+	var newMap map[string]interface{}
+	err = json.Unmarshal(new, &newMap)
+	if err != nil {
+		return nil, idVal, fmt.Errorf("new json-encoded parse failed: %w", err)
+	}
+	idVal = originalMap[idKey]
+	diff, err = simpleMapIterator(originalMap, newMap)
+	if err != nil {
+		return nil, idVal, fmt.Errorf("failed maps iteration: %w", err)
+	}
+	return diff, idVal, nil
+}
+
+func buildSetClause(diff map[string]interface{}) (set string) {
+	var sets []string
+	for k, v := range diff {
+		if _, ok := v.(string); ok {
+			sets = append(sets, fmt.Sprintf(`"%s"='%s'`, k, v))
+		} else {
+			sets = append(sets, fmt.Sprintf(`"%s"=%v`, k, v))
+		}
+	}
+	set = strings.Join(sets, ", ")
+	return set
 }
