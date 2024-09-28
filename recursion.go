@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"sort"
 	"strings"
 )
 
@@ -227,30 +228,35 @@ func findDiffsForQuery(original, new []byte, idKey string) (diff map[string]inte
 }
 
 func buildSetClause(diff map[string]interface{}, rel map[string]string) (set string) {
+	keys := make([]string, 0, len(diff))
+	for key := range diff {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
 	var sets []string
+	var attr string
 	if rel != nil {
-		for k, v := range diff {
-			if attr, found := rel[k]; found {
-				if _, ok := v.(string); ok {
-					sets = append(sets, fmt.Sprintf(`"%s"='%s'`, attr, v))
-				} else {
-					sets = append(sets, fmt.Sprintf(`"%s"=%v`, attr, v))
-				}
+		for _, k := range keys {
+			attr = k
+			if dbAttr, found := rel[k]; found {
+				attr = dbAttr
+			}
+			if value, ok := diff[k].(string); ok {
+				fmt.Println(k, value)
+				sets = append(sets, fmt.Sprintf(`"%s"='%s'`, attr, value))
 			} else {
-				if _, ok := v.(string); ok {
-					sets = append(sets, fmt.Sprintf(`"%s"='%s'`, k, v))
-				} else {
-					sets = append(sets, fmt.Sprintf(`"%s"=%v`, k, v))
-				}
+				fmt.Println(k, value)
+				sets = append(sets, fmt.Sprintf(`"%s"=%v`, attr, diff[k]))
 			}
 		}
 		set = strings.Join(sets, ", ")
 	} else {
-		for k, v := range diff {
-			if _, ok := v.(string); ok {
-				sets = append(sets, fmt.Sprintf(`"%s"='%s'`, k, v))
+		for _, k := range keys {
+			if value, ok := diff[k].(string); ok {
+				sets = append(sets, fmt.Sprintf(`"%s"='%s'`, k, value))
 			} else {
-				sets = append(sets, fmt.Sprintf(`"%s"=%v`, k, v))
+				sets = append(sets, fmt.Sprintf(`"%s"=%v`, k, diff[k]))
 			}
 		}
 		set = strings.Join(sets, ", ")

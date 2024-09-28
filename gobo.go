@@ -13,14 +13,13 @@ var (
 	ErrNoCondition = errors.New("method did not receive query conditions")
 )
 
-// DoPatch will handle the differences of the given structures.
-// It checks values between database record and new request.
-//
-// Pass the database content as original and the request body as the new one. Ensure given data will be a json in bytes array format
+// JSONDiff will handle the differences of the given structures.
+// It checks values between original data and the new one and return the differences.
+// Ensure given data is a json in bytes array format.
 //
 // To configure analysis of slices add UseReplaceSlice or UseAddNewSlice function as 'optFuncs' argument.
 // If nothing is added, it will conserve original slice and add the differences of the new one.
-func DoPatch(original, new []byte, optFuncs ...Option) (diff map[string]interface{}, err error) {
+func JSONDiff(original, new []byte, optFuncs ...Option) (diff map[string]interface{}, err error) {
 	opts := Options{}
 	for _, optFunc := range optFuncs {
 		optFunc(&opts)
@@ -44,14 +43,14 @@ func DoPatch(original, new []byte, optFuncs ...Option) (diff map[string]interfac
 	return diff, nil
 }
 
-// DoPatchWithQuery will do the same tasks as DoPatch but instead of return the differences, it will return a PostgreSQL query with only the necessary changes to be made.
+// PatchWithQuery will do the same tasks as DoPatch but instead of return the differences, it will return a PostgreSQL update query with only the necessary changes to be made.
 //
 // The 'condition' parameter can be completed as you want. It's added after the SET part.
 // If the argument is "id", "Id" or "ID", method will consider this attribute as condition to the update. If string is empty, ErrNoCondition will be triggered.
 // The 'rel' parameter works as the relationship of given json with database. Keys for json field names and the values as the associated table attributes.
 // For example: map[string]string{} {"last_name"(json): "lastName"(database)}
-// It isn't necessary to specify if there are no differences between database and json fields. In that case set 'rel' as nil.
-func DoPatchWithQuery(original, new []byte, table, condition string, rel map[string]string) (query string, err error) {
+// In the case there are no differences between database and json fields, set 'rel' as nil.
+func PatchWithQuery(original, new []byte, table, condition string, rel map[string]string) (query string, err error) {
 	switch condition {
 	case "":
 		return "", ErrNoCondition
