@@ -18,7 +18,7 @@ var (
 // Ensure given data is a json in bytes array format.
 //
 // To configure analysis of slices add UseReplaceSlice or UseAddNewSlice function as 'optFuncs' argument.
-// If nothing is added, it will conserve original slice and add the differences of the new one.
+// If nothing is added, it will conserve original slice and add the differences of the new one. Slices with empty items won't throw an ErrEmptyFields like the others structures.
 func JSONDiff(original, new []byte, optFuncs ...Option) (diff map[string]interface{}, err error) {
 	opts := Options{}
 	for _, optFunc := range optFuncs {
@@ -38,7 +38,7 @@ func JSONDiff(original, new []byte, optFuncs ...Option) (diff map[string]interfa
 
 	diff, err = iterateMaps(originalMap, newMap, opts)
 	if err != nil {
-		return nil, fmt.Errorf("failed maps iteration: %w", err)
+		return nil, err
 	}
 	return diff, nil
 }
@@ -62,10 +62,10 @@ func PatchWithQuery(original, new []byte, table, condition string, rel map[strin
 		switch reflect.TypeOf(idVal).Kind() {
 		case reflect.String:
 			set := buildSetClause(diff, rel)
-			query = fmt.Sprintf(`UPDATE "%s" SET (%s) WHERE "%s"='%s'`, table, set, condition, idVal.(string))
+			query = fmt.Sprintf(`UPDATE "%s" SET %s WHERE "%s"='%s'`, table, set, condition, idVal.(string))
 		case reflect.Float64:
 			set := buildSetClause(diff, rel)
-			query = fmt.Sprintf(`UPDATE "%s" SET (%s) WHERE "%s"=%v`, table, set, condition, idVal)
+			query = fmt.Sprintf(`UPDATE "%s" SET %s WHERE "%s"=%v`, table, set, condition, idVal)
 		}
 	default:
 		diff, _, err := findDiffsForQuery(original, new, condition)
@@ -73,7 +73,7 @@ func PatchWithQuery(original, new []byte, table, condition string, rel map[strin
 			return "", err
 		}
 		set := buildSetClause(diff, rel)
-		query = fmt.Sprintf(`UPDATE "%s" SET (%s) %v`, table, set, condition)
+		query = fmt.Sprintf(`UPDATE "%s" SET %s %v`, table, set, condition)
 	}
 	return query, nil
 }
