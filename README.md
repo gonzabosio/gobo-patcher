@@ -36,6 +36,6 @@ func main() {
 		return
 	}
 	fmt.Println(query)
-	// output: UPDATE "users" SET ("username"='janedoe') WHERE "id"=1234
+	// output: UPDATE "users" SET "username"='janedoe' WHERE "id"=1234
 }
 ```

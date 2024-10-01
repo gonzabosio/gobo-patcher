@@ -45,7 +45,7 @@ func iterateMaps(original, new map[string]interface{}, opts Options) (map[string
 							if orig != nil {
 								diffOfMap, err := iterateMaps(orig, new, opts)
 								if err != nil {
-									fmt.Println(err)
+									return nil, err
 								}
 								diff[k] = diffOfMap
 							} else if opts.AddNewSlice {
@@ -68,8 +68,10 @@ func iterateMaps(original, new map[string]interface{}, opts Options) (map[string
 									if _, ok := v.([]interface{}); ok {
 										diff = handleSlice(v, v2, diff, k, opts)
 										break
-									} else if v != v2 {
+									} else if v != "" && v != v2 {
 										diff[k] = v
+									} else if v == "" {
+										return nil, ErrEmptyFields
 									}
 								}
 							}
@@ -78,6 +80,8 @@ func iterateMaps(original, new map[string]interface{}, opts Options) (map[string
 					} else if v != "" && v != v2 {
 						diff[k] = v
 						break
+					} else if v == "" {
+						return nil, ErrEmptyFields
 					}
 				}
 			}
@@ -104,6 +108,8 @@ func simpleMapIterator(original, new map[string]interface{}) (map[string]interfa
 					if v != "" && v != v2 {
 						diff[k] = v
 						break
+					} else if v == "" {
+						return nil, ErrEmptyFields
 					}
 				}
 			}
@@ -116,13 +122,11 @@ func simpleMapIterator(original, new map[string]interface{}) (map[string]interfa
 }
 
 func appendNewSlice(original, new []interface{}) []interface{} {
-	fmt.Println("In appendNewSlice method", original, new)
 	original = append(original, new...)
 	return original
 }
 
 func appendNewSliceDiffs(original, new []interface{}) []interface{} {
-	fmt.Println("In appendNewSliceDiffs(default) method", original, new)
 	var diff []interface{}
 	var found bool
 	for i := range new {
@@ -222,7 +226,7 @@ func findDiffsForQuery(original, new []byte, idKey string) (diff map[string]inte
 	idVal = originalMap[idKey]
 	diff, err = simpleMapIterator(originalMap, newMap)
 	if err != nil {
-		return nil, idVal, fmt.Errorf("failed maps iteration: %w", err)
+		return nil, idVal, err
 	}
 	return diff, idVal, nil
 }
@@ -243,10 +247,8 @@ func buildSetClause(diff map[string]interface{}, rel map[string]string) (set str
 				attr = dbAttr
 			}
 			if value, ok := diff[k].(string); ok {
-				fmt.Println(k, value)
 				sets = append(sets, fmt.Sprintf(`"%s"='%s'`, attr, value))
 			} else {
-				fmt.Println(k, value)
 				sets = append(sets, fmt.Sprintf(`"%s"=%v`, attr, diff[k]))
 			}
 		}
