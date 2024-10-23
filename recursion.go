@@ -290,18 +290,18 @@ func buildSetClause(diff map[string]interface{}, rel map[string]string) (set str
 				attr = dbAttr
 			}
 			if value, ok := diff[k].(string); ok {
-				sets = append(sets, fmt.Sprintf(`"%s"='%s'`, attr, value))
+				sets = append(sets, fmt.Sprintf(`%s='%s'`, attr, value))
 			} else {
-				sets = append(sets, fmt.Sprintf(`"%s"=%v`, attr, diff[k]))
+				sets = append(sets, fmt.Sprintf(`%s=%v`, attr, diff[k]))
 			}
 		}
 		set = strings.Join(sets, ", ")
 	} else {
 		for _, k := range keys {
 			if value, ok := diff[k].(string); ok {
-				sets = append(sets, fmt.Sprintf(`"%s"='%s'`, k, value))
+				sets = append(sets, fmt.Sprintf(`%s='%s'`, k, value))
 			} else {
-				sets = append(sets, fmt.Sprintf(`"%s"=%v`, k, diff[k]))
+				sets = append(sets, fmt.Sprintf(`%s=%v`, k, diff[k]))
 			}
 		}
 		set = strings.Join(sets, ", ")
