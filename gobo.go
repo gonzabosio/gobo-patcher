@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 )
 
 var (
@@ -49,26 +48,30 @@ func JSONDiff(original, new []byte, optFuncs ...Option) (diff map[string]interfa
 // If the argument is "id", "Id" or "ID", method will consider this attribute as condition to the update. If string is empty, ErrNoCondition will be triggered.
 // The 'rel' parameter works as the relationship of given json with database. Keys for json field names and the values as the associated table attributes.
 // For example: map[string]string{} {"last_name"(json): "lastName"(database)}
+// If ignoreEmpty is true it won't include the empty (string) fields.
 // In the case there are no differences between database and json fields, set 'rel' as nil.
-func PatchWithQuery(original, new []byte, table, condition string, rel map[string]string) (query string, err error) {
+func PatchWithQuery(original, new []byte, table, condition string, ignoreEmpty bool, rel map[string]string) (query string, err error) {
 	switch condition {
 	case "":
 		return "", ErrNoCondition
 	case "id", "Id", "ID":
-		diff, idVal, err := findDiffsForQuery(original, new, condition)
+		diff, idVal, err := findDiffsForQuery(original, new, condition, ignoreEmpty)
 		if err != nil {
 			return "", err
 		}
-		switch reflect.TypeOf(idVal).Kind() {
-		case reflect.String:
+		switch idVal := idVal.(type) {
+		case string:
 			set := buildSetClause(diff, rel)
-			query = fmt.Sprintf(`UPDATE "%s" SET %s WHERE "%s"='%s'`, table, set, condition, idVal.(string))
-		case reflect.Float64:
+			query = fmt.Sprintf(`UPDATE "%s" SET %s WHERE "%s"='%s'`, table, set, condition, idVal)
+		case int64:
+			set := buildSetClause(diff, rel)
+			query = fmt.Sprintf(`UPDATE "%s" SET %s WHERE "%s"=%v`, table, set, condition, idVal)
+		case json.Number:
 			set := buildSetClause(diff, rel)
 			query = fmt.Sprintf(`UPDATE "%s" SET %s WHERE "%s"=%v`, table, set, condition, idVal)
 		}
 	default:
-		diff, _, err := findDiffsForQuery(original, new, condition)
+		diff, _, err := findDiffsForQuery(original, new, condition, ignoreEmpty)
 		if err != nil {
 			return "", err
 		}
