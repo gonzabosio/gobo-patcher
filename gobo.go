@@ -62,13 +62,13 @@ func PatchWithQuery(original, new []byte, table, condition string, ignoreEmpty b
 		switch idVal := idVal.(type) {
 		case string:
 			set := buildSetClause(diff, rel)
-			query = fmt.Sprintf(`UPDATE "%s" SET %s WHERE "%s"='%s'`, table, set, condition, idVal)
+			query = fmt.Sprintf(`UPDATE %v SET %s WHERE "%s"='%s'`, table, set, condition, idVal)
 		case int64:
 			set := buildSetClause(diff, rel)
-			query = fmt.Sprintf(`UPDATE "%s" SET %s WHERE "%s"=%v`, table, set, condition, idVal)
+			query = fmt.Sprintf(`UPDATE %v SET %s WHERE "%s"=%v`, table, set, condition, idVal)
 		case json.Number:
 			set := buildSetClause(diff, rel)
-			query = fmt.Sprintf(`UPDATE "%s" SET %s WHERE "%s"=%v`, table, set, condition, idVal)
+			query = fmt.Sprintf(`UPDATE %v SET %s WHERE "%s"=%v`, table, set, condition, idVal)
 		}
 	default:
 		diff, _, err := findDiffsForQuery(original, new, condition, ignoreEmpty)

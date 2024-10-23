@@ -2,6 +2,7 @@ package gobo
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -221,7 +222,8 @@ func TestPatchWithQuery(t *testing.T) {
 			t.Fatal(err)
 		}
 		expected := `UPDATE "user" SET "age"=20, "name"='Gonza' WHERE "id"=1234`
-		assert.Equal(t, expected, query)
+		kwQuery := strings.Replace(query, `user`, `"user"`, -1)
+		assert.Equal(t, expected, kwQuery)
 	})
 	t.Run("where id(string)", func(t *testing.T) {
 		db := `{"id":"1234", "name": "Gonzalo", "age": 19}`
@@ -231,7 +233,8 @@ func TestPatchWithQuery(t *testing.T) {
 			t.Fatal(err)
 		}
 		expected := `UPDATE "user" SET "age"=20, "name"='Gonza' WHERE "id"='1234'`
-		assert.Equal(t, expected, query)
+		kwQuery := strings.Replace(query, `user`, `"user"`, -1)
+		assert.Equal(t, expected, kwQuery)
 	})
 	t.Run("error no condition", func(t *testing.T) {
 		db := `{"id":1234, "name": "Gonzalo", "age": 19}`
@@ -253,7 +256,8 @@ func TestPatchWithQuery(t *testing.T) {
 			t.Fatal(err)
 		}
 		expected := `UPDATE "user" SET "Age"=20, "country"='Greenland', "Name"='Gonza' WHERE "id"='1234'`
-		assert.Equal(t, expected, query)
+		kwQuery := strings.Replace(query, `user`, `"user"`, -1)
+		assert.Equal(t, expected, kwQuery)
 	})
 
 	t.Run("empty field", func(t *testing.T) {
@@ -263,7 +267,8 @@ func TestPatchWithQuery(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		assert.Equal(t, `UPDATE "user" SET "age"=28, "country"='', "name"='Jane' WHERE "id"='1234'`, query)
+		kwQuery := strings.Replace(query, `user`, `"user"`, -1)
+		assert.Equal(t, `UPDATE "user" SET "age"=28, "country"='', "name"='Jane' WHERE "id"='1234'`, kwQuery)
 	})
 
 	t.Run("accurate filter", func(t *testing.T) {
@@ -273,7 +278,6 @@ func TestPatchWithQuery(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		assert.Equal(t, `UPDATE "public.project" SET "name"='resources manager' WHERE "id"=1014336373145370625`, query)
-		//fix output: UPDATE "public.project" SET "details"='', "id"=1.0143363731453706e+18, "name"='resources manager', "team_id"=1.0141106792206172e+18 WHERE "id"=1.0143363731453706e+18
+		assert.Equal(t, `UPDATE public.project SET "name"='resources manager' WHERE "id"=1014336373145370625`, query)
 	})
 }
