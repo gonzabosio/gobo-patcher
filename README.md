@@ -26,7 +26,7 @@ func main() {
 	for k, v := range diff {
 		fmt.Println(k, v)
 	}
-	// output: name Jane Doe - age 30
+	// output: name Jane Doe \n age 30
 
 	db := `{"id": 1234, "username": "johndoe", "age": 30}`
 	update := `{"username": "janedoe"}`

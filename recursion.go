@@ -1,6 +1,7 @@
 package gobo
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -90,20 +91,61 @@ func iterateMaps(original, new map[string]interface{}, opts Options) (map[string
 }
 
 // Detect changes in flat json structures such as strings and numbers. Used in DoPatchWithQuery method to create the queries.
-func simpleMapIterator(original, new map[string]interface{}) (map[string]interface{}, error) {
+func simpleMapIterator(original, new map[string]interface{}, ignoreEmpty bool) (map[string]interface{}, error) {
 	diff := make(map[string]interface{})
-	for k, v := range new {
-		for k2, v2 := range original {
-			if k != k2 && v == v2 {
-				return nil, ErrKeyConflict
-			} else if k == k2 {
-				switch reflect.TypeOf(v).Kind() {
-				case reflect.Float64:
-					diff[k] = v
-				case reflect.String:
-					if v != v2 {
-						diff[k] = v
-						break
+	if ignoreEmpty {
+		for k, v := range new {
+			if foundID(k) {
+				continue
+			}
+			for k2, v2 := range original {
+				if k != k2 && v == v2 {
+					return nil, ErrKeyConflict
+				} else if k == k2 {
+					switch v := v.(type) {
+					case json.Number:
+						if intVal, err := v.Int64(); err == nil {
+							diff[k] = intVal
+						} else if floatVal, err := v.Float64(); err == nil {
+							diff[k] = floatVal
+						} else {
+							log.Println("Error parsing number:", err)
+						}
+					case string:
+						if v != "" && v != v2 {
+							diff[k] = v
+							break
+						}
+					default:
+						log.Println("Unhandled type for key:", k, "value:", v)
+					}
+				}
+			}
+		}
+	} else {
+		for k, v := range new {
+			if foundID(k) {
+				continue
+			}
+			for k2, v2 := range original {
+				if k != k2 && v == v2 {
+					return nil, ErrKeyConflict
+				} else if k == k2 {
+					switch v := v.(type) {
+					case json.Number:
+						if intVal, err := v.Int64(); err == nil {
+							diff[k] = intVal
+						} else if floatVal, err := v.Float64(); err == nil {
+							diff[k] = floatVal
+						} else {
+						}
+					case string:
+						if v != v2 {
+							diff[k] = v
+							break
+						}
+					default:
+						log.Println("Unhandled type for key:", k, "value:", v)
 					}
 				}
 			}
@@ -113,6 +155,10 @@ func simpleMapIterator(original, new map[string]interface{}) (map[string]interfa
 		return nil, ErrNoDiff
 	}
 	return diff, nil
+}
+
+func foundID(id string) bool {
+	return strings.Contains(strings.ToLower(id), "id")
 }
 
 func appendNewSlice(original, new []interface{}) []interface{} {
@@ -206,19 +252,22 @@ func handleSlice(v, v2 interface{}, diff map[string]interface{}, key string, opt
 	return diff
 }
 
-func findDiffsForQuery(original, new []byte, idKey string) (diff map[string]interface{}, idVal interface{}, err error) {
-	var originalMap map[string]interface{}
-	err = json.Unmarshal(original, &originalMap)
+func findDiffsForQuery(original, new []byte, idKey string, ignoreEmpty bool) (diff map[string]interface{}, idVal interface{}, err error) {
+	var originalMap, newMap map[string]interface{}
+	decOrig := json.NewDecoder(bytes.NewReader(original))
+	decOrig.UseNumber()
+	err = decOrig.Decode(&originalMap)
 	if err != nil {
-		return nil, idVal, fmt.Errorf("original json-encoded parse failed: %w", err)
+		return nil, idVal, fmt.Errorf("failed to unmarshal original JSON: %v", err)
 	}
-	var newMap map[string]interface{}
-	err = json.Unmarshal(new, &newMap)
+	decNew := json.NewDecoder(bytes.NewReader(new))
+	decNew.UseNumber()
+	err = decNew.Decode(&newMap)
 	if err != nil {
-		return nil, idVal, fmt.Errorf("new json-encoded parse failed: %w", err)
+		return nil, idVal, fmt.Errorf("failed to unmarshal new JSON: %v", err)
 	}
 	idVal = originalMap[idKey]
-	diff, err = simpleMapIterator(originalMap, newMap)
+	diff, err = simpleMapIterator(originalMap, newMap, ignoreEmpty)
 	if err != nil {
 		return nil, idVal, err
 	}

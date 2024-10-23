@@ -206,7 +206,7 @@ func TestPatchWithQuery(t *testing.T) {
 		db := `{"name": "Gonzalo", "age": 19, "phoneNumber": "1 1234 5678"}`
 		new := `{"name": "Gonza", "age": 20}`
 		condition := `WHERE phoneNumber = '1 1234 5678'`
-		query, err := PatchWithQuery([]byte(db), []byte(new), "user", condition, nil)
+		query, err := PatchWithQuery([]byte(db), []byte(new), "user", condition, true, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -216,7 +216,7 @@ func TestPatchWithQuery(t *testing.T) {
 	t.Run("where id(number)", func(t *testing.T) {
 		db := `{"id":1234, "name": "Gonzalo", "age": 19}`
 		new := `{"name": "Gonza", "age": 20}`
-		query, err := PatchWithQuery([]byte(db), []byte(new), "user", "id", nil)
+		query, err := PatchWithQuery([]byte(db), []byte(new), "user", "id", true, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -226,7 +226,7 @@ func TestPatchWithQuery(t *testing.T) {
 	t.Run("where id(string)", func(t *testing.T) {
 		db := `{"id":"1234", "name": "Gonzalo", "age": 19}`
 		new := `{"name": "Gonza", "age": 20}`
-		query, err := PatchWithQuery([]byte(db), []byte(new), "user", "id", nil)
+		query, err := PatchWithQuery([]byte(db), []byte(new), "user", "id", true, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -236,7 +236,7 @@ func TestPatchWithQuery(t *testing.T) {
 	t.Run("error no condition", func(t *testing.T) {
 		db := `{"id":1234, "name": "Gonzalo", "age": 19}`
 		new := `{"name": "Gonza", "age": 20}`
-		query, err := PatchWithQuery([]byte(db), []byte(new), "user", "", nil)
+		query, err := PatchWithQuery([]byte(db), []byte(new), "user", "", false, nil)
 		expected := `UPDATE "user" SET "age"=20, "name"='Gonza' WHERE "id"=1234`
 		assert.NotEqual(t, expected, query)
 		assert.Equal(t, fmt.Errorf("method did not receive query conditions"), err)
@@ -248,7 +248,7 @@ func TestPatchWithQuery(t *testing.T) {
 			"name": "Name",
 			"age":  "Age",
 		}
-		query, err := PatchWithQuery([]byte(db), []byte(new), "user", "id", rel)
+		query, err := PatchWithQuery([]byte(db), []byte(new), "user", "id", true, rel)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -259,10 +259,21 @@ func TestPatchWithQuery(t *testing.T) {
 	t.Run("empty field", func(t *testing.T) {
 		dbRec := `{"id":"1234", "name":"John", "age": 30, "country": "Argentina"}`
 		newData := `{"name": "Jane", "age": 28, "country": ""}`
-		query, err := PatchWithQuery([]byte(dbRec), []byte(newData), "user", "id", nil)
+		query, err := PatchWithQuery([]byte(dbRec), []byte(newData), "user", "id", false, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		assert.Equal(t, `UPDATE "user" SET "age"=28, "country"='', "name"='Jane' WHERE "id"='1234'`, query)
+	})
+
+	t.Run("accurate filter", func(t *testing.T) {
+		dbRec := `{"id":1014336373145370625,"name":"res-man","details":"details of project","team_id":1014110679220617217}`
+		newData := `{"id":1014336373145370625,"name":"resources manager","details":"","team_id":1014110679220617217}`
+		query, err := PatchWithQuery([]byte(dbRec), []byte(newData), "public.project", "id", true, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Equal(t, `UPDATE "public.project" SET "name"='resources manager' WHERE "id"=1014336373145370625`, query)
+		//fix output: UPDATE "public.project" SET "details"='', "id"=1.0143363731453706e+18, "name"='resources manager', "team_id"=1.0141106792206172e+18 WHERE "id"=1.0143363731453706e+18
 	})
 }
